@@ -117,3 +117,87 @@ func TestPutGetUpdateDelete(t *testing.T) {
 		})
 	})
 }
+
+func TestQueryScan(t *testing.T) {
+	sess := newsess(t)
+	tname := tablename(t)
+	db := dynamodb.New(sess)
+
+	score1 := &GameScore{GameScorePK{"Alien Adventure", "User-1"}, 20}
+	ok(t, dynamo.Put(db, tname, score1, nil, nil))
+	score2 := &GameScore{GameScorePK{"Alien Adventure", "User-2"}, 75}
+	ok(t, dynamo.Put(db, tname, score2, nil, nil))
+	score3 := &GameScore{GameScorePK{"Alien Adventure", "User-3"}, 100}
+	ok(t, dynamo.Put(db, tname, score3, nil, nil))
+	defer func() {
+		ok(t, dynamo.Delete(db, tname, score1.GameScorePK, nil, nil))
+		ok(t, dynamo.Delete(db, tname, score2.GameScorePK, nil, nil))
+		ok(t, dynamo.Delete(db, tname, score3.GameScorePK, nil, nil))
+	}()
+
+	t.Run("Query", func(t *testing.T) {
+		t.Run("query all partition items in base table", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Query(db, tname, "", dynamo.NewExp("GameTitle = :GameTitle").Value(":GameTitle", "Alien Adventure"), func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, nil, nil, 0, 0)
+			ok(t, err)
+			equals(t, 3, len(list))
+			equals(t, int64(20), list[0].TopScore)
+		})
+
+		t.Run("query all projected in base table", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Query(db, tname, "", dynamo.NewExp("GameTitle = :GameTitle").Value(":GameTitle", "Alien Adventure"), func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, dynamo.NewExp("GameTitle, UserId"), nil, 0, 0)
+			ok(t, err)
+			equals(t, 3, len(list))
+			equals(t, int64(0), list[0].TopScore)
+		})
+
+		t.Run("query filtered projection in base table", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Query(db, tname, "", dynamo.NewExp("GameTitle = :GameTitle").Value(":GameTitle", "Alien Adventure"), func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, dynamo.NewExp("GameTitle, UserId"), dynamo.NewExp("TopScore > :minTopScore").Value(":minTopScore", 20), 0, 0)
+			ok(t, err)
+			equals(t, 2, len(list))
+			equals(t, "User-2", list[0].UserID)
+			equals(t, int64(0), list[0].TopScore)
+		})
+
+		t.Run("query page filtered projection in base table", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Query(db, tname, "", dynamo.NewExp("GameTitle = :GameTitle").Value(":GameTitle", "Alien Adventure"), func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, dynamo.NewExp("GameTitle, UserId"), dynamo.NewExp("TopScore > :minTopScore").Value(":minTopScore", 20), 2, 1)
+			ok(t, err)
+			equals(t, 1, len(list))
+			equals(t, "User-2", list[0].UserID)
+			equals(t, int64(0), list[0].TopScore)
+		})
+
+		t.Run("query page filtered projection on index", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Query(db, tname, "GameTitleIndex", dynamo.NewExp("GameTitle = :GameTitle AND TopScore > :minTopScore").Value(":GameTitle", "Alien Adventure").Value(":minTopScore", 20), func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, dynamo.NewExp("GameTitle, TopScore"), nil, 2, 1)
+			ok(t, err)
+			equals(t, 2, len(list))
+			equals(t, int64(75), list[0].TopScore)
+			equals(t, "", list[0].UserID)
+		})
+
+	})
+}
