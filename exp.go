@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
-//Exp is a convenient builder for creating dynamo expressions
+//Exp is a convenient builder for creating DynamoDB expressions
 type Exp struct {
 	exp     string
 	names   map[string]*string

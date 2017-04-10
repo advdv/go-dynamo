@@ -10,16 +10,16 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
-// Put will put a item into a DynamoDB table
-func Put(db dynamodbiface.DynamoDBAPI, tname string, item interface{}, cond *Exp, condErr error) (err error) {
-	it, err := dynamodbattribute.MarshalMap(item)
+// Delete a item from a DynamoDB table by its primary key
+func Delete(db dynamodbiface.DynamoDBAPI, tname string, pk interface{}, cond *Exp, condErr error) (err error) {
+	ipk, err := dynamodbattribute.MarshalMap(pk)
 	if err != nil {
-		return fmt.Errorf("failed to marshal item map: %+v", err)
+		return fmt.Errorf("failed to marshal primarky key: %+v", err)
 	}
 
-	inp := &dynamodb.PutItemInput{
+	inp := &dynamodb.DeleteItemInput{
 		TableName: aws.String(tname),
-		Item:      it,
+		Key:       ipk,
 	}
 
 	if cond != nil {
@@ -29,7 +29,7 @@ func Put(db dynamodbiface.DynamoDBAPI, tname string, item interface{}, cond *Exp
 		}
 	}
 
-	if _, err = db.PutItem(inp); err != nil {
+	if _, err = db.DeleteItem(inp); err != nil {
 		aerr, ok := err.(awserr.Error)
 		if !ok || aerr.Code() != dynamodb.ErrCodeConditionalCheckFailedException {
 			return fmt.Errorf("failed to perform request: %+v", err)
@@ -38,7 +38,6 @@ func Put(db dynamodbiface.DynamoDBAPI, tname string, item interface{}, cond *Exp
 		if condErr != nil {
 			return condErr
 		}
-
 		return err
 	}
 

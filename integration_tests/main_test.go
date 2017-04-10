@@ -1,18 +1,119 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/advanderveer/go-dynamo"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
-func TestBasicTable(t *testing.T) {
+func TestPutGetUpdateDelete(t *testing.T) {
 	sess := newsess(t)
 	tname := tablename(t)
 	db := dynamodb.New(sess)
 
-	score := &GameScore{"Alien Adventure", "User-5", 100}
-	err := dynamo.Put(db, tname, score, nil, nil)
-	ok(t, err)
+	pk1 := GameScorePK{"Alien Adventure", "User-5"}
+	score1 := &GameScore{pk1, 100}
+
+	t.Run("Put", func(t *testing.T) {
+		t.Run("unconditionally put a game score", func(t *testing.T) {
+			err := dynamo.Put(db, tname, score1, nil, nil)
+			ok(t, err)
+		})
+
+		t.Run("put with conditional exp and custom error", func(t *testing.T) {
+			err := dynamo.Put(
+				db,
+				tname,
+				score1,
+				dynamo.NewExp("attribute_not_exists(GameTitle)"), ErrGameScoreExists)
+			equals(t, ErrGameScoreExists, err)
+		})
+
+		t.Run("put with a conditional exp and no custom error", func(t *testing.T) {
+			err := dynamo.Put(
+				db,
+				tname,
+				score1,
+				dynamo.NewExp("attribute_not_exists(GameTitle)"), nil)
+			assert(t, strings.Contains(err.Error(), "ConditionalCheckFailedException"), "expected normal conditional failed error, got: %+v", err)
+		})
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		t.Run("get non-existing with no error configured", func(t *testing.T) {
+			score2 := &GameScore{}
+			err := dynamo.Get(db, tname, GameScorePK{"No Such Game", "User-5"}, score2, nil, nil)
+			ok(t, err)
+			equals(t, "", score2.GameTitle)
+		})
+
+		t.Run("get non-existing with an error configured", func(t *testing.T) {
+			score3 := &GameScore{}
+			err := dynamo.Get(db, tname, GameScorePK{"No Such Game", "User-5"}, score3, nil, ErrGameScoreNotExists)
+			equals(t, ErrGameScoreNotExists, err)
+		})
+
+		t.Run("get an existing gamescore", func(t *testing.T) {
+			score4 := &GameScore{}
+			err := dynamo.Get(db, tname, pk1, score4, nil, ErrGameScoreNotExists)
+			ok(t, err)
+			equals(t, score1.GameTitle, score4.GameTitle)
+			equals(t, score1.UserID, score4.UserID)
+			equals(t, score1.TopScore, score4.TopScore)
+		})
+
+		t.Run("get an projected existing gamescore", func(t *testing.T) {
+			score5 := &GameScore{}
+			err := dynamo.Get(db, tname, pk1, score5, dynamo.NewExp("GameTitle, UserId"), ErrGameScoreNotExists)
+			ok(t, err)
+			equals(t, score1.GameTitle, score5.GameTitle)
+			equals(t, score1.UserID, score5.UserID)
+			equals(t, int64(0), score5.TopScore)
+		})
+	})
+
+	t.Run("Update", func(t *testing.T) {
+		t.Run("update non-existing without condition", func(t *testing.T) {
+			err := dynamo.Update(db, tname, GameScorePK{"No Such Game 2", "User-5"}, nil, nil, nil)
+			ok(t, err)
+		})
+
+		t.Run("update non-existing with condition and error", func(t *testing.T) {
+			err := dynamo.Update(db, tname, GameScorePK{"No Such Game", "User-5"}, dynamo.NewExp("SET TopScore = :TopScore").Value(":TopScore", 120), dynamo.NewExp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			equals(t, ErrGameScoreNotExists, err)
+		})
+
+		t.Run("update existing", func(t *testing.T) {
+			err := dynamo.Update(db, tname, pk1, dynamo.NewExp("SET TopScore = :TopScore").Value(":TopScore", 120), dynamo.NewExp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			ok(t, err)
+
+			item := &GameScore{}
+			err = dynamo.Get(db, tname, pk1, item, nil, ErrGameScoreNotExists)
+			ok(t, err)
+			equals(t, int64(120), item.TopScore)
+		})
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Run("delete non-existing without condition", func(t *testing.T) {
+			err := dynamo.Delete(db, tname, GameScorePK{"No Such Game", "User-5"}, nil, nil)
+			ok(t, err)
+		})
+
+		t.Run("delete non-existing with condition and error", func(t *testing.T) {
+			err := dynamo.Delete(db, tname, GameScorePK{"No Such Game", "User-5"}, dynamo.NewExp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			equals(t, ErrGameScoreNotExists, err)
+		})
+
+		t.Run("delete existing with condition and error", func(t *testing.T) {
+			err := dynamo.Delete(db, tname, pk1, dynamo.NewExp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			ok(t, err)
+
+			//clean up the side effect or our unconditionaly update
+			err = dynamo.Delete(db, tname, GameScorePK{"No Such Game 2", "User-5"}, dynamo.NewExp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			ok(t, err)
+		})
+	})
 }
