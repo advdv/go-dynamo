@@ -22,3 +22,8 @@ _testmain.go
 *.exe
 *.test
 *.prof
+glide.lock
+secrets.env
+vendor
+integration_tests/*.tfstate
+integration_tests/*.tfstate.backup

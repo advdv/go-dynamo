@@ -1,0 +1,4 @@
+package: github.com/advanderveer/go-dynamo/integration_tests
+import:
+- package: github.com/aws/aws-sdk-go            #official aws sdk
+  version: ^1.8.0
