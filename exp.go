@@ -8,32 +8,32 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
-//Exp is a convenient builder for creating DynamoDB expressions
-type Exp struct {
+//E is a convenient builder for creating DynamoDB expressions
+type E struct {
 	exp     string
 	names   map[string]*string
 	values  map[string]*dynamodb.AttributeValue
 	lastErr error
 }
 
-//NewExp starts a new expression
-func NewExp(exp string) *Exp {
-	return &Exp{
+//Exp starts a new expression
+func Exp(exp string) *E {
+	return &E{
 		exp:    exp,
 		names:  map[string]*string{},
 		values: map[string]*dynamodb.AttributeValue{},
 	}
 }
 
-//Name adds an attribute name
-func (e *Exp) Name(placeholder, name string) *Exp {
+//N adds an attribute name
+func (e *E) N(placeholder, name string) *E {
 	placeholder = strings.TrimLeft(placeholder, "#")
 	e.names["#"+placeholder] = aws.String(name)
 	return e
 }
 
-//Value adds an attribute value
-func (e *Exp) Value(placeholder string, val interface{}) *Exp {
+//V adds an attribute value
+func (e *E) V(placeholder string, val interface{}) *E {
 	attr, err := dynamodbattribute.Marshal(val)
 	if err != nil {
 		e.lastErr = err
@@ -46,7 +46,7 @@ func (e *Exp) Value(placeholder string, val interface{}) *Exp {
 }
 
 //Get returns attribute names and values for the dynamo instruction
-func (e *Exp) Get() (*string, map[string]*string, map[string]*dynamodb.AttributeValue, error) {
+func (e *E) Get() (*string, map[string]*string, map[string]*dynamodb.AttributeValue, error) {
 	vals := e.values
 	if len(vals) < 1 {
 		vals = nil
@@ -61,7 +61,7 @@ func (e *Exp) Get() (*string, map[string]*string, map[string]*dynamodb.Attribute
 }
 
 //GetMerged returns a dynamo instruction after merging in existing vals and keys
-func (e *Exp) GetMerged(names map[string]*string, vals map[string]*dynamodb.AttributeValue) (*string, map[string]*string, map[string]*dynamodb.AttributeValue, error) {
+func (e *E) GetMerged(names map[string]*string, vals map[string]*dynamodb.AttributeValue) (*string, map[string]*string, map[string]*dynamodb.AttributeValue, error) {
 	for ph, name := range names {
 		e.names[ph] = name
 	}

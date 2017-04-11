@@ -10,7 +10,7 @@ import (
 )
 
 // Get will retrieve a specific item from a DynamoDB table by its primary key
-func Get(db dynamodbiface.DynamoDBAPI, tname string, pk interface{}, item interface{}, proj *Exp, errItemNil error) (err error) {
+func Get(db dynamodbiface.DynamoDBAPI, tname string, pk interface{}, item interface{}, proj *E, errItemNil error) (err error) {
 	ipk, err := dynamodbattribute.MarshalMap(pk)
 	if err != nil {
 		return fmt.Errorf("failed to marshal primary key: %+v", err)

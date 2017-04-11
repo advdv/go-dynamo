@@ -11,7 +11,7 @@ import (
 )
 
 // Update an item in a DynamoDB table by its primary key pk with exp
-func Update(db dynamodbiface.DynamoDBAPI, tname string, pk interface{}, upd *Exp, cond *Exp, condErr error) (err error) {
+func Update(db dynamodbiface.DynamoDBAPI, tname string, pk interface{}, upd *E, cond *E, condErr error) (err error) {
 	ipk, err := dynamodbattribute.MarshalMap(pk)
 	if err != nil {
 		return fmt.Errorf("failed to marshal primary key: %+v", err)

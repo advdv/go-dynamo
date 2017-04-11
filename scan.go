@@ -10,13 +10,17 @@ import (
 )
 
 // Scan reads all items (across partitions) in a DynamoDB table or index
-func Scan(db dynamodbiface.DynamoDBAPI, tname, iname string, next func() interface{}, proj *Exp, filt *Exp, limit int64, maxPages int) (err error) {
+func Scan(db dynamodbiface.DynamoDBAPI, tname, iname string, next func() interface{}, proj *E, filt *E, limit int64, maxPages int, sel string) (err error) {
 	if maxPages == 0 {
 		maxPages = 1
 	}
 
 	inp := &dynamodb.ScanInput{
 		TableName: aws.String(tname),
+	}
+
+	if sel != "" {
+		inp.SetSelect(sel)
 	}
 
 	if iname != "" {

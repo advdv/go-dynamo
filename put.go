@@ -11,7 +11,7 @@ import (
 )
 
 // Put will put a item into a DynamoDB table
-func Put(db dynamodbiface.DynamoDBAPI, tname string, item interface{}, cond *Exp, condErr error) (err error) {
+func Put(db dynamodbiface.DynamoDBAPI, tname string, item interface{}, cond *E, condErr error) (err error) {
 	it, err := dynamodbattribute.MarshalMap(item)
 	if err != nil {
 		return fmt.Errorf("failed to marshal item map: %+v", err)

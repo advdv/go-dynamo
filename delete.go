@@ -11,7 +11,7 @@ import (
 )
 
 // Delete a item from a DynamoDB table by its primary key
-func Delete(db dynamodbiface.DynamoDBAPI, tname string, pk interface{}, cond *Exp, condErr error) (err error) {
+func Delete(db dynamodbiface.DynamoDBAPI, tname string, pk interface{}, cond *E, condErr error) (err error) {
 	ipk, err := dynamodbattribute.MarshalMap(pk)
 	if err != nil {
 		return fmt.Errorf("failed to marshal primarky key: %+v", err)

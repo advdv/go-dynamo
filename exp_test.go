@@ -7,9 +7,9 @@ import (
 )
 
 func TestExp(t *testing.T) {
-	exp, names, vals, err := NewExp("attribute_not_exists(#wrk)").
-		Name("#wrk", "wrk").
-		Value(":foo", "bar").
+	exp, names, vals, err := Exp("attribute_not_exists(#wrk)").
+		N("#wrk", "wrk").
+		V(":foo", "bar").
 		Get()
 
 	ok(t, err)
