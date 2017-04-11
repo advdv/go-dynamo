@@ -76,17 +76,30 @@ func TestPutGetUpdateDelete(t *testing.T) {
 
 	t.Run("Update", func(t *testing.T) {
 		t.Run("update non-existing without condition", func(t *testing.T) {
-			err := dynamo.Update(db, tname, GameScorePK{"No Such Game 2", "User-5"}, nil, nil, nil)
+			in := dynamo.NewUpdateInput(tname, GameScorePK{"No Any Game", "User-5"})
+			err := dynamo.Update(db, in)
 			ok(t, err)
 		})
 
 		t.Run("update non-existing with condition and error", func(t *testing.T) {
-			err := dynamo.Update(db, tname, GameScorePK{"No Such Game", "User-5"}, dynamo.Exp("SET TopScore = :TopScore").V(":TopScore", 120), dynamo.Exp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			in := dynamo.NewUpdateInput(tname, GameScorePK{"No Such Game", "User-5"})
+			in.SetUpdateExpression("SET TopScore = :TopScore")
+			in.AddExpressionValue(":TopScore", 120)
+			in.SetConditionExpression("attribute_exists(GameTitle)")
+			in.SetConditionError(ErrGameScoreNotExists)
+
+			err := dynamo.Update(db, in)
 			equals(t, ErrGameScoreNotExists, err)
 		})
 
 		t.Run("update existing", func(t *testing.T) {
-			err := dynamo.Update(db, tname, pk1, dynamo.Exp("SET TopScore = :TopScore").V(":TopScore", 120), dynamo.Exp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			in := dynamo.NewUpdateInput(tname, pk1)
+			in.SetUpdateExpression("SET TopScore = :TopScore")
+			in.AddExpressionValue(":TopScore", 120)
+			in.SetConditionExpression("attribute_exists(GameTitle)")
+			in.SetConditionError(ErrGameScoreNotExists)
+
+			err := dynamo.Update(db, in)
 			ok(t, err)
 
 			item := &GameScore{}
@@ -98,21 +111,28 @@ func TestPutGetUpdateDelete(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		t.Run("delete non-existing without condition", func(t *testing.T) {
-			err := dynamo.Delete(db, tname, GameScorePK{"No Such Game", "User-5"}, nil, nil)
+			in := dynamo.NewDeleteInput(tname, GameScorePK{"No Such Game", "User-5"})
+			err := dynamo.Delete(db, in)
 			ok(t, err)
 		})
 
 		t.Run("delete non-existing with condition and error", func(t *testing.T) {
-			err := dynamo.Delete(db, tname, GameScorePK{"No Such Game", "User-5"}, dynamo.Exp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			in := dynamo.NewDeleteInput(tname, GameScorePK{"No Such Game", "User-5"})
+			in.SetConditionExpression("attribute_exists(GameTitle)")
+			in.SetConditionError(ErrGameScoreNotExists)
+			err := dynamo.Delete(db, in)
 			equals(t, ErrGameScoreNotExists, err)
 		})
 
 		t.Run("delete existing with condition and error", func(t *testing.T) {
-			err := dynamo.Delete(db, tname, pk1, dynamo.Exp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			in := dynamo.NewDeleteInput(tname, pk1)
+			in.SetConditionExpression("attribute_exists(GameTitle)")
+			in.SetConditionError(ErrGameScoreNotExists)
+			err := dynamo.Delete(db, in)
 			ok(t, err)
 
-			//clean up the side effect or our unconditionaly update
-			err = dynamo.Delete(db, tname, GameScorePK{"No Such Game 2", "User-5"}, dynamo.Exp("attribute_exists(GameTitle)"), ErrGameScoreNotExists)
+			in = dynamo.NewDeleteInput(tname, GameScorePK{"No Any Game", "User-5"})
+			err = dynamo.Delete(db, in)
 			ok(t, err)
 		})
 	})
@@ -130,9 +150,9 @@ func TestQueryScan(t *testing.T) {
 	score3 := &GameScore{GameScorePK{"Alien Adventure", "User-3"}, 100}
 	ok(t, dynamo.Put(db, tname, score3, nil, nil))
 	defer func() {
-		ok(t, dynamo.Delete(db, tname, score1.GameScorePK, nil, nil))
-		ok(t, dynamo.Delete(db, tname, score2.GameScorePK, nil, nil))
-		ok(t, dynamo.Delete(db, tname, score3.GameScorePK, nil, nil))
+		ok(t, dynamo.Delete(db, dynamo.NewDeleteInput(tname, score1.GameScorePK)))
+		ok(t, dynamo.Delete(db, dynamo.NewDeleteInput(tname, score2.GameScorePK)))
+		ok(t, dynamo.Delete(db, dynamo.NewDeleteInput(tname, score3.GameScorePK)))
 	}()
 
 	t.Run("Query", func(t *testing.T) {

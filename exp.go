@@ -34,6 +34,14 @@ func (eh *ExpressionHolder) AddExpressionValue(placeholder string, val interface
 	eh.ExpAttrValues[":"+placeholder] = val
 }
 
+//ConditionInput allows working with condition expressions
+type ConditionInput struct {
+	ConditionError error
+}
+
+//SetConditionError configures the err that returns
+func (ci *ConditionInput) SetConditionError(err error) { ci.ConditionError = err }
+
 //PagingInput is used when paging can be configured
 type PagingInput struct {
 	MaxPages int
