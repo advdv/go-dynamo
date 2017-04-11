@@ -9,63 +9,59 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
-// Scan reads all items (across partitions) in a DynamoDB table or index
-func Scan(db dynamodbiface.DynamoDBAPI, tname, iname string, next func() interface{}, proj *E, filt *E, limit int64, maxPages int, sel string) (err error) {
-	if maxPages == 0 {
-		maxPages = 1
-	}
+//ScanInput holds configuration for a query
+type ScanInput struct {
+	PagingInput
+	ExpressionHolder
+	dynamodb.ScanInput
+}
 
-	inp := &dynamodb.ScanInput{
+//NewScanInput prepares a query with it mandatory elements
+func NewScanInput(tname string) *ScanInput {
+	return &ScanInput{ScanInput: dynamodb.ScanInput{
 		TableName: aws.String(tname),
+	}}
+}
+
+// Scan reads all items (across partitions) in a DynamoDB table or index
+func Scan(db dynamodbiface.DynamoDBAPI, inp *ScanInput, items interface{}) (count int64, err error) {
+	if inp.MaxPages == 0 {
+		inp.MaxPages = 1
 	}
 
-	if sel != "" {
-		inp.SetSelect(sel)
+	if len(inp.ExpAttrNames) > 0 {
+		inp.SetExpressionAttributeNames(aws.StringMap(inp.ExpAttrNames))
 	}
 
-	if iname != "" {
-		inp.SetIndexName(iname)
-	}
-	if proj != nil {
-		inp.ProjectionExpression, inp.ExpressionAttributeNames, inp.ExpressionAttributeValues, err = proj.Get()
-		if err != nil {
-			return fmt.Errorf("error in projection expression: %+v", err)
+	if len(inp.ExpAttrValues) > 0 {
+		if inp.ExpressionAttributeValues, err = dynamodbattribute.MarshalMap(inp.ExpAttrValues); err != nil {
+			return 0, fmt.Errorf("failed to marshal expression values: %+v", err)
 		}
-	}
-
-	if filt != nil {
-		inp.FilterExpression, inp.ExpressionAttributeNames, inp.ExpressionAttributeValues, err = filt.GetMerged(inp.ExpressionAttributeNames, inp.ExpressionAttributeValues)
-		if err != nil {
-			return fmt.Errorf("error in filter expression: %+v", err)
-		}
-	}
-
-	if limit != 0 {
-		inp.SetLimit(limit)
 	}
 
 	pageNum := 0
 	var lastErr error
-	if err = db.ScanPages(inp,
+	if err = db.ScanPages(&inp.ScanInput,
 		func(out *dynamodb.ScanOutput, lastPage bool) bool {
+			count += aws.Int64Value(out.Count)
 			pageNum++
-			for _, item := range out.Items {
-				next := next()
-				err := dynamodbattribute.UnmarshalMap(item, next)
+
+			if len(out.Items) > 0 {
+				err = dynamodbattribute.UnmarshalListOfMaps(out.Items, items)
 				if err != nil {
-					lastErr = fmt.Errorf("failed to unmarshal item: %+v", err)
+					lastErr = fmt.Errorf("failed to unmarshal items: %+v", err)
 					return false
 				}
 			}
 
-			return pageNum < maxPages
+			return pageNum < inp.MaxPages
 		}); err != nil {
-		return fmt.Errorf("failed to perform request: %+v", err)
+		return count, fmt.Errorf("failed to perform request: %+v", err)
 	}
 
 	if lastErr != nil {
-		return lastErr
+		return count, lastErr
 	}
 
-	return nil
+	return count, nil
 }

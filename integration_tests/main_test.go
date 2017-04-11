@@ -142,9 +142,10 @@ func TestQueryScan(t *testing.T) {
 			in := dynamo.NewQueryInput(tname, "GameTitle = :GameTitle")
 			in.AddExpressionValue(":GameTitle", "Alien Adventure")
 
-			err := dynamo.Query(db, in, &list)
+			n, err := dynamo.Query(db, in, &list)
 			ok(t, err)
 
+			equals(t, int64(3), n)
 			equals(t, 3, len(list))
 			equals(t, int64(20), list[0].TopScore)
 		})
@@ -156,9 +157,9 @@ func TestQueryScan(t *testing.T) {
 			in.SetProjectionExpression("GameTitle, UserId")
 			in.AddExpressionValue(":GameTitle", "Alien Adventure")
 
-			err := dynamo.Query(db, in, &list)
+			n, err := dynamo.Query(db, in, &list)
 			ok(t, err)
-
+			equals(t, int64(3), n)
 			equals(t, 3, len(list))
 			equals(t, int64(0), list[0].TopScore)
 		})
@@ -173,9 +174,9 @@ func TestQueryScan(t *testing.T) {
 			in.AddExpressionValue(":GameTitle", "Alien Adventure")
 			in.AddExpressionValue(":minTopScore", 20)
 
-			err := dynamo.Query(db, in, &list)
+			n, err := dynamo.Query(db, in, &list)
 			ok(t, err)
-
+			equals(t, int64(2), n)
 			equals(t, 2, len(list))
 			equals(t, "User-2", list[0].UserID)
 			equals(t, int64(0), list[0].TopScore)
@@ -193,9 +194,9 @@ func TestQueryScan(t *testing.T) {
 			in.SetMaxPages(1)
 			in.SetLimit(2)
 
-			err := dynamo.Query(db, in, &list)
+			n, err := dynamo.Query(db, in, &list)
 			ok(t, err)
-
+			equals(t, int64(1), n)
 			equals(t, 1, len(list))
 			equals(t, "User-2", list[0].UserID)
 			equals(t, int64(0), list[0].TopScore)
@@ -214,48 +215,67 @@ func TestQueryScan(t *testing.T) {
 			in.SetMaxPages(1)
 			in.SetLimit(2)
 
-			err := dynamo.Query(db, in, &list)
+			n, err := dynamo.Query(db, in, &list)
 			ok(t, err)
-
+			equals(t, int64(2), n)
 			equals(t, 2, len(list))
 			equals(t, int64(75), list[0].TopScore)
 			equals(t, "", list[0].UserID)
+		})
+
+		t.Run("count page filtered on index", func(t *testing.T) {
+			in := dynamo.NewQueryInput(tname,
+				"GameTitle = :GameTitle AND TopScore > :minTopScore")
+
+			in.SetIndexName("GameTitleIndex")
+			in.AddExpressionValue(":GameTitle", "Alien Adventure")
+			in.AddExpressionValue(":minTopScore", 20)
+			in.SetMaxPages(1)
+			in.SetLimit(2)
+			in.SetSelect("COUNT")
+
+			n, err := dynamo.Query(db, in, nil)
+			ok(t, err)
+			equals(t, int64(2), n)
 		})
 	})
 
 	t.Run("Scan", func(t *testing.T) {
 		t.Run("scan all items in base table", func(t *testing.T) {
 			list := []*GameScore{}
-			err := dynamo.Scan(db, tname, "", func() interface{} {
-				item := &GameScore{}
-				list = append(list, item)
-				return item
-			}, nil, nil, 0, 0, "")
+			in := dynamo.NewScanInput(tname)
+
+			n, err := dynamo.Scan(db, in, &list)
 			ok(t, err)
+
+			equals(t, int64(3), n)
 			equals(t, 3, len(list))
 			equals(t, int64(20), list[0].TopScore)
 		})
 
 		t.Run("scan all projected in base table", func(t *testing.T) {
 			list := []*GameScore{}
-			err := dynamo.Scan(db, tname, "", func() interface{} {
-				item := &GameScore{}
-				list = append(list, item)
-				return item
-			}, dynamo.Exp("GameTitle, UserId"), nil, 0, 0, "")
+			in := dynamo.NewScanInput(tname)
+			in.SetProjectionExpression("GameTitle, UserId")
+
+			n, err := dynamo.Scan(db, in, &list)
 			ok(t, err)
+
+			equals(t, int64(3), n)
 			equals(t, 3, len(list))
 			equals(t, int64(0), list[0].TopScore)
 		})
 
 		t.Run("scan filtered projection in base table", func(t *testing.T) {
 			list := []*GameScore{}
-			err := dynamo.Scan(db, tname, "", func() interface{} {
-				item := &GameScore{}
-				list = append(list, item)
-				return item
-			}, dynamo.Exp("GameTitle, UserId"), dynamo.Exp("TopScore > :minTopScore").V(":minTopScore", 20), 0, 0, "")
+			in := dynamo.NewScanInput(tname)
+			in.SetProjectionExpression("GameTitle, UserId")
+			in.SetFilterExpression("TopScore > :minTopScore")
+			in.AddExpressionValue(":minTopScore", 20)
+
+			n, err := dynamo.Scan(db, in, &list)
 			ok(t, err)
+			equals(t, int64(2), n)
 			equals(t, 2, len(list))
 			equals(t, "User-2", list[0].UserID)
 			equals(t, int64(0), list[0].TopScore)
@@ -263,12 +283,17 @@ func TestQueryScan(t *testing.T) {
 
 		t.Run("scan page filtered projection in base table", func(t *testing.T) {
 			list := []*GameScore{}
-			err := dynamo.Scan(db, tname, "", func() interface{} {
-				item := &GameScore{}
-				list = append(list, item)
-				return item
-			}, dynamo.Exp("GameTitle, UserId"), dynamo.Exp("TopScore > :minTopScore").V(":minTopScore", 20), 2, 1, "")
+			in := dynamo.NewScanInput(tname)
+			in.SetProjectionExpression("GameTitle, UserId")
+			in.SetFilterExpression("TopScore > :minTopScore")
+			in.AddExpressionValue(":minTopScore", 20)
+			in.SetLimit(2)
+			in.SetMaxPages(1)
+
+			n, err := dynamo.Scan(db, in, &list)
 			ok(t, err)
+
+			equals(t, int64(1), n)
 			equals(t, 1, len(list))
 			equals(t, "User-2", list[0].UserID)
 			equals(t, int64(0), list[0].TopScore)
@@ -276,22 +301,23 @@ func TestQueryScan(t *testing.T) {
 
 		t.Run("scan page filtered projection on index", func(t *testing.T) {
 			list := []*GameScore{}
-			err := dynamo.Scan(db, tname, "GameTitleIndex", func() interface{} {
-				item := &GameScore{}
-				list = append(list, item)
-				return item
-			}, dynamo.Exp("GameTitle, TopScore"), nil, 2, 1, "")
+			in := dynamo.NewScanInput(tname)
+			in.SetIndexName("GameTitleIndex")
+			in.SetProjectionExpression("GameTitle, TopScore")
+			in.SetLimit(2)
+			in.SetMaxPages(1)
+
+			n, err := dynamo.Scan(db, in, &list)
+
 			ok(t, err)
+			equals(t, int64(2), n)
 			equals(t, 2, len(list))
 			equals(t, int64(20), list[0].TopScore)
 			equals(t, "", list[0].UserID)
 		})
 
 		//@TODO Scan: (total)segment (parralell scan)
-		//@TODO Query/Scan/GetItem: consistent reads
 		//@TODO All: context based (deadline, cancel)
-		//@TODO Query/Scan: "select" attributes: ALL_ATTRIBUTES | ALL_PROJECTED_ATTRIBUTES | COUNT | SPECIFIC_ATTRIBUTES
-		//@TODO Query: scan direction: forward, backward
 		//@TODO BatchWriteItem/BatchGetItem: Implement
 	})
 }

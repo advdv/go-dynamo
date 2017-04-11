@@ -8,6 +8,40 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
+//ExpressionHolder makes working with expression attributes easier
+type ExpressionHolder struct {
+	ExpAttrNames  map[string]string
+	ExpAttrValues map[string]interface{}
+}
+
+//AddExpressionName adds an dynamo expression name
+func (eh *ExpressionHolder) AddExpressionName(placeholder, name string) {
+	if eh.ExpAttrNames == nil {
+		eh.ExpAttrNames = map[string]string{}
+	}
+
+	placeholder = strings.TrimLeft(placeholder, "#")
+	eh.ExpAttrNames["#"+placeholder] = name
+}
+
+//AddExpressionValue adds an dynamo expression value
+func (eh *ExpressionHolder) AddExpressionValue(placeholder string, val interface{}) {
+	if eh.ExpAttrValues == nil {
+		eh.ExpAttrValues = map[string]interface{}{}
+	}
+
+	placeholder = strings.TrimLeft(placeholder, ":")
+	eh.ExpAttrValues[":"+placeholder] = val
+}
+
+//PagingInput is used when paging can be configured
+type PagingInput struct {
+	MaxPages int
+}
+
+//SetMaxPages limits the number of pages returned
+func (pi *PagingInput) SetMaxPages(n int) { pi.MaxPages = n }
+
 //E is a convenient builder for creating DynamoDB expressions
 type E struct {
 	exp     string
