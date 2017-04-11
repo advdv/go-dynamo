@@ -198,6 +198,76 @@ func TestQueryScan(t *testing.T) {
 			equals(t, int64(75), list[0].TopScore)
 			equals(t, "", list[0].UserID)
 		})
+	})
 
+	t.Run("Scan", func(t *testing.T) {
+		t.Run("scan all items in base table", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Scan(db, tname, "", func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, nil, nil, 0, 0)
+			ok(t, err)
+			equals(t, 3, len(list))
+			equals(t, int64(20), list[0].TopScore)
+		})
+
+		t.Run("scan all projected in base table", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Scan(db, tname, "", func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, dynamo.NewExp("GameTitle, UserId"), nil, 0, 0)
+			ok(t, err)
+			equals(t, 3, len(list))
+			equals(t, int64(0), list[0].TopScore)
+		})
+
+		t.Run("scan filtered projection in base table", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Scan(db, tname, "", func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, dynamo.NewExp("GameTitle, UserId"), dynamo.NewExp("TopScore > :minTopScore").Value(":minTopScore", 20), 0, 0)
+			ok(t, err)
+			equals(t, 2, len(list))
+			equals(t, "User-2", list[0].UserID)
+			equals(t, int64(0), list[0].TopScore)
+		})
+
+		t.Run("scan page filtered projection in base table", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Scan(db, tname, "", func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, dynamo.NewExp("GameTitle, UserId"), dynamo.NewExp("TopScore > :minTopScore").Value(":minTopScore", 20), 2, 1)
+			ok(t, err)
+			equals(t, 1, len(list))
+			equals(t, "User-2", list[0].UserID)
+			equals(t, int64(0), list[0].TopScore)
+		})
+
+		t.Run("scan page filtered projection on index", func(t *testing.T) {
+			list := []*GameScore{}
+			err := dynamo.Scan(db, tname, "GameTitleIndex", func() interface{} {
+				item := &GameScore{}
+				list = append(list, item)
+				return item
+			}, dynamo.NewExp("GameTitle, TopScore"), nil, 2, 1)
+			ok(t, err)
+			equals(t, 2, len(list))
+			equals(t, int64(20), list[0].TopScore)
+			equals(t, "", list[0].UserID)
+		})
+
+		//@TODO Scan: (total)segment (parralell scan)
+		//@TODO Query/Scan/GetItem: consistent reads
+		//@TODO All: context based (deadline, cancel)
+		//@TODO Query/Scan: "select" attributes: ALL_ATTRIBUTES | ALL_PROJECTED_ATTRIBUTES | COUNT | SPECIFIC_ATTRIBUTES
+		//@TODO Query: scan direction: forward, backward
 	})
 }
