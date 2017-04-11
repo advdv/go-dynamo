@@ -14,7 +14,6 @@ function print_help {
 function run_test { #test our scheduling reactor
 	echo "--> testing..."
 	export $(cat secrets.env)
-	go test .. -v
 	export $(terraform output env | tr -d ' '); go test -v
 }
 

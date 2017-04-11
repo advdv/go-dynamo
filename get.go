@@ -9,32 +9,43 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
+//GetInput holds configuration for getting an item
+type GetInput struct {
+	ExpressionHolder
+	dynamodb.GetItemInput
+	ItemNilError error
+	PrimaryKey   interface{}
+}
+
+//SetItemNilError allows for configured the error (if any) when nothing is found
+func (gi *GetInput) SetItemNilError(err error) { gi.ItemNilError = err }
+
+//NewGetInput prepares a query with it mandatory elements
+func NewGetInput(tname string, pk interface{}) *GetInput {
+	return &GetInput{GetItemInput: dynamodb.GetItemInput{
+		TableName: aws.String(tname),
+	}, PrimaryKey: pk}
+}
+
 // Get will retrieve a specific item from a DynamoDB table by its primary key
-func Get(db dynamodbiface.DynamoDBAPI, tname string, pk interface{}, item interface{}, proj *E, errItemNil error) (err error) {
-	ipk, err := dynamodbattribute.MarshalMap(pk)
+func Get(db dynamodbiface.DynamoDBAPI, inp *GetInput, item interface{}) (err error) {
+	ipk, err := dynamodbattribute.MarshalMap(inp.PrimaryKey)
 	if err != nil {
 		return fmt.Errorf("failed to marshal primary key: %+v", err)
 	}
 
-	inp := &dynamodb.GetItemInput{
-		TableName: aws.String(tname),
-		Key:       ipk,
-	}
-
-	if proj != nil {
-		inp.ProjectionExpression, inp.ExpressionAttributeNames, _, err = proj.Get()
-		if err != nil {
-			return fmt.Errorf("error in projection expression: %+v", err)
-		}
+	inp.SetKey(ipk)
+	if len(inp.ExpAttrNames) > 0 {
+		inp.SetExpressionAttributeNames(aws.StringMap(inp.ExpAttrNames))
 	}
 
 	var out *dynamodb.GetItemOutput
-	if out, err = db.GetItem(inp); err != nil {
+	if out, err = db.GetItem(&inp.GetItemInput); err != nil {
 		return fmt.Errorf("failed to perform request: %+v", err)
 	}
 
 	if out.Item == nil {
-		return errItemNil
+		return inp.ItemNilError
 	}
 
 	err = dynamodbattribute.UnmarshalMap(out.Item, item)

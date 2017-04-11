@@ -18,25 +18,23 @@ func TestPutGetUpdateDelete(t *testing.T) {
 
 	t.Run("Put", func(t *testing.T) {
 		t.Run("unconditionally put a game score", func(t *testing.T) {
-			err := dynamo.Put(db, tname, score1, nil, nil)
+			in := dynamo.NewPutInput(tname, score1)
+			err := dynamo.Put(db, in)
 			ok(t, err)
 		})
 
 		t.Run("put with conditional exp and custom error", func(t *testing.T) {
-			err := dynamo.Put(
-				db,
-				tname,
-				score1,
-				dynamo.Exp("attribute_not_exists(GameTitle)"), ErrGameScoreExists)
+			in := dynamo.NewPutInput(tname, score1)
+			in.SetConditionExpression("attribute_not_exists(GameTitle)")
+			in.SetConditionError(ErrGameScoreExists)
+			err := dynamo.Put(db, in)
 			equals(t, ErrGameScoreExists, err)
 		})
 
 		t.Run("put with a conditional exp and no custom error", func(t *testing.T) {
-			err := dynamo.Put(
-				db,
-				tname,
-				score1,
-				dynamo.Exp("attribute_not_exists(GameTitle)"), nil)
+			in := dynamo.NewPutInput(tname, score1)
+			in.SetConditionExpression("attribute_not_exists(GameTitle)")
+			err := dynamo.Put(db, in)
 			assert(t, strings.Contains(err.Error(), "ConditionalCheckFailedException"), "expected normal conditional failed error, got: %+v", err)
 		})
 	})
@@ -44,20 +42,25 @@ func TestPutGetUpdateDelete(t *testing.T) {
 	t.Run("Get", func(t *testing.T) {
 		t.Run("get non-existing with no error configured", func(t *testing.T) {
 			score2 := &GameScore{}
-			err := dynamo.Get(db, tname, GameScorePK{"No Such Game", "User-5"}, score2, nil, nil)
+			in := dynamo.NewGetInput(tname, GameScorePK{"No Such Game", "User-5"})
+			err := dynamo.Get(db, in, score2)
 			ok(t, err)
 			equals(t, "", score2.GameTitle)
 		})
 
 		t.Run("get non-existing with an error configured", func(t *testing.T) {
 			score3 := &GameScore{}
-			err := dynamo.Get(db, tname, GameScorePK{"No Such Game", "User-5"}, score3, nil, ErrGameScoreNotExists)
+			in := dynamo.NewGetInput(tname, GameScorePK{"No Such Game", "User-5"})
+			in.SetItemNilError(ErrGameScoreNotExists)
+			err := dynamo.Get(db, in, score3)
 			equals(t, ErrGameScoreNotExists, err)
 		})
 
 		t.Run("get an existing gamescore", func(t *testing.T) {
 			score4 := &GameScore{}
-			err := dynamo.Get(db, tname, pk1, score4, nil, ErrGameScoreNotExists)
+			in := dynamo.NewGetInput(tname, pk1)
+			in.SetItemNilError(ErrGameScoreNotExists)
+			err := dynamo.Get(db, in, score4)
 			ok(t, err)
 			equals(t, score1.GameTitle, score4.GameTitle)
 			equals(t, score1.UserID, score4.UserID)
@@ -66,7 +69,10 @@ func TestPutGetUpdateDelete(t *testing.T) {
 
 		t.Run("get an projected existing gamescore", func(t *testing.T) {
 			score5 := &GameScore{}
-			err := dynamo.Get(db, tname, pk1, score5, dynamo.Exp("GameTitle, UserId"), ErrGameScoreNotExists)
+			in := dynamo.NewGetInput(tname, pk1)
+			in.SetProjectionExpression("GameTitle, UserId")
+			in.SetItemNilError(ErrGameScoreNotExists)
+			err := dynamo.Get(db, in, score5)
 			ok(t, err)
 			equals(t, score1.GameTitle, score5.GameTitle)
 			equals(t, score1.UserID, score5.UserID)
@@ -103,7 +109,9 @@ func TestPutGetUpdateDelete(t *testing.T) {
 			ok(t, err)
 
 			item := &GameScore{}
-			err = dynamo.Get(db, tname, pk1, item, nil, ErrGameScoreNotExists)
+			gin := dynamo.NewGetInput(tname, pk1)
+			gin.SetItemNilError(ErrGameScoreNotExists)
+			err = dynamo.Get(db, gin, item)
 			ok(t, err)
 			equals(t, int64(120), item.TopScore)
 		})
@@ -144,11 +152,11 @@ func TestQueryScan(t *testing.T) {
 	db := dynamodb.New(sess)
 
 	score1 := &GameScore{GameScorePK{"Alien Adventure", "User-1"}, 20}
-	ok(t, dynamo.Put(db, tname, score1, nil, nil))
+	ok(t, dynamo.Put(db, dynamo.NewPutInput(tname, score1)))
 	score2 := &GameScore{GameScorePK{"Alien Adventure", "User-2"}, 75}
-	ok(t, dynamo.Put(db, tname, score2, nil, nil))
+	ok(t, dynamo.Put(db, dynamo.NewPutInput(tname, score2)))
 	score3 := &GameScore{GameScorePK{"Alien Adventure", "User-3"}, 100}
-	ok(t, dynamo.Put(db, tname, score3, nil, nil))
+	ok(t, dynamo.Put(db, dynamo.NewPutInput(tname, score3)))
 	defer func() {
 		ok(t, dynamo.Delete(db, dynamo.NewDeleteInput(tname, score1.GameScorePK)))
 		ok(t, dynamo.Delete(db, dynamo.NewDeleteInput(tname, score2.GameScorePK)))
