@@ -9,23 +9,28 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
-//QueryInput holds configuration for a query
-type QueryInput struct {
+//Query holds configuration for a query
+type Query struct {
 	PagingInput
 	ExpressionHolder
 	dynamodb.QueryInput
 }
 
-//NewQueryInput prepares a query with it mandatory elements
-func NewQueryInput(tname, kcond string) *QueryInput {
-	return &QueryInput{QueryInput: dynamodb.QueryInput{
+//NewQuery prepares a query with it mandatory elements
+func NewQuery(tname, kcond string) *Query {
+	return &Query{QueryInput: dynamodb.QueryInput{
 		TableName:              aws.String(tname),
 		KeyConditionExpression: aws.String(kcond),
 	}}
 }
 
-// Query reads items of a DynamoDB partition
-func Query(db dynamodbiface.DynamoDBAPI, inp *QueryInput, items interface{}) (count int64, err error) {
+// Execute will perform the query with a background context
+func (inp *Query) Execute(db dynamodbiface.DynamoDBAPI, items interface{}) (count int64, err error) {
+	return inp.ExecuteWithContext(aws.BackgroundContext(), db, items)
+}
+
+// ExecuteWithContext will perform the query
+func (inp *Query) ExecuteWithContext(ctx aws.Context, db dynamodbiface.DynamoDBAPI, items interface{}) (count int64, err error) {
 	if inp.MaxPages == 0 {
 		inp.MaxPages = 1
 	}
@@ -42,7 +47,7 @@ func Query(db dynamodbiface.DynamoDBAPI, inp *QueryInput, items interface{}) (co
 
 	pageNum := 0
 	var lastErr error
-	if err = db.QueryPages(&inp.QueryInput,
+	if err = db.QueryPagesWithContext(ctx, &inp.QueryInput,
 		func(out *dynamodb.QueryOutput, lastPage bool) bool {
 			count += aws.Int64Value(out.Count)
 			pageNum++

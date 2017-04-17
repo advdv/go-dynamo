@@ -9,8 +9,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
-//GetInput holds configuration for getting an item
-type GetInput struct {
+//Get holds configuration for getting an item
+type Get struct {
 	ExpressionHolder
 	dynamodb.GetItemInput
 	ItemNilError error
@@ -18,17 +18,22 @@ type GetInput struct {
 }
 
 //SetItemNilError allows for configured the error (if any) when nothing is found
-func (gi *GetInput) SetItemNilError(err error) { gi.ItemNilError = err }
+func (inp *Get) SetItemNilError(err error) { inp.ItemNilError = err }
 
-//NewGetInput prepares a query with it mandatory elements
-func NewGetInput(tname string, pk interface{}) *GetInput {
-	return &GetInput{GetItemInput: dynamodb.GetItemInput{
+//NewGet prepares a query with it mandatory elements
+func NewGet(tname string, pk interface{}) *Get {
+	return &Get{GetItemInput: dynamodb.GetItemInput{
 		TableName: aws.String(tname),
 	}, PrimaryKey: pk}
 }
 
-// Get will retrieve a specific item from a DynamoDB table by its primary key
-func Get(db dynamodbiface.DynamoDBAPI, inp *GetInput, item interface{}) (err error) {
+//Execute will get an item with the background context
+func (inp *Get) Execute(db dynamodbiface.DynamoDBAPI, item interface{}) (err error) {
+	return inp.ExecuteWithContext(aws.BackgroundContext(), db, item)
+}
+
+// ExecuteWithContext will retrieve a specific item from a DynamoDB table by its primary key
+func (inp *Get) ExecuteWithContext(ctx aws.Context, db dynamodbiface.DynamoDBAPI, item interface{}) (err error) {
 	ipk, err := dynamodbattribute.MarshalMap(inp.PrimaryKey)
 	if err != nil {
 		return fmt.Errorf("failed to marshal primary key: %+v", err)
@@ -40,7 +45,7 @@ func Get(db dynamodbiface.DynamoDBAPI, inp *GetInput, item interface{}) (err err
 	}
 
 	var out *dynamodb.GetItemOutput
-	if out, err = db.GetItem(&inp.GetItemInput); err != nil {
+	if out, err = db.GetItemWithContext(ctx, &inp.GetItemInput); err != nil {
 		return fmt.Errorf("failed to perform request: %+v", err)
 	}
 

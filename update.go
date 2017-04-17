@@ -10,23 +10,28 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
-//UpdateInput holds configuration for a delete
-type UpdateInput struct {
+//Update holds configuration for a delete
+type Update struct {
 	ConditionInput
 	ExpressionHolder
 	dynamodb.UpdateItemInput
 	PrimaryKey interface{}
 }
 
-//NewUpdateInput prepares a query with it mandatory elements
-func NewUpdateInput(tname string, pk interface{}) *UpdateInput {
-	return &UpdateInput{UpdateItemInput: dynamodb.UpdateItemInput{
+//NewUpdate prepares a query with it mandatory elements
+func NewUpdate(tname string, pk interface{}) *Update {
+	return &Update{UpdateItemInput: dynamodb.UpdateItemInput{
 		TableName: aws.String(tname),
 	}, PrimaryKey: pk}
 }
 
-// Update an item in a DynamoDB table by its primary key pk with exp
-func Update(db dynamodbiface.DynamoDBAPI, inp *UpdateInput) (err error) {
+//Execute will update an item with the background context
+func (inp *Update) Execute(db dynamodbiface.DynamoDBAPI) (err error) {
+	return inp.ExecuteWithContext(aws.BackgroundContext(), db)
+}
+
+// ExecuteWithContext updates an item in a DynamoDB table by its primary key pk with exp
+func (inp *Update) ExecuteWithContext(ctx aws.Context, db dynamodbiface.DynamoDBAPI) (err error) {
 	ipk, err := dynamodbattribute.MarshalMap(inp.PrimaryKey)
 	if err != nil {
 		return fmt.Errorf("failed to marshal primary key: %+v", err)
@@ -43,7 +48,7 @@ func Update(db dynamodbiface.DynamoDBAPI, inp *UpdateInput) (err error) {
 		}
 	}
 
-	if _, err = db.UpdateItem(&inp.UpdateItemInput); err != nil {
+	if _, err = db.UpdateItemWithContext(ctx, &inp.UpdateItemInput); err != nil {
 		aerr, ok := err.(awserr.Error)
 		if !ok || aerr.Code() != dynamodb.ErrCodeConditionalCheckFailedException {
 			return fmt.Errorf("failed to perform request: %+v", err)

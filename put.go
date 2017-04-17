@@ -10,23 +10,28 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
-//PutInput holds configuration for getting an item
-type PutInput struct {
+//Put holds configuration for getting an item
+type Put struct {
 	ExpressionHolder
 	dynamodb.PutItemInput
 	ConditionInput
 	Item interface{}
 }
 
-//NewPutInput prepares a query with it mandatory elements
-func NewPutInput(tname string, item interface{}) *PutInput {
-	return &PutInput{PutItemInput: dynamodb.PutItemInput{
+//NewPut prepares a query with it mandatory elements
+func NewPut(tname string, item interface{}) *Put {
+	return &Put{PutItemInput: dynamodb.PutItemInput{
 		TableName: aws.String(tname),
 	}, Item: item}
 }
 
-// Put will put a item into a DynamoDB table
-func Put(db dynamodbiface.DynamoDBAPI, inp *PutInput) (err error) {
+// Execute will perform the put with a background context
+func (inp *Put) Execute(db dynamodbiface.DynamoDBAPI) (err error) {
+	return inp.ExecuteWithContext(aws.BackgroundContext(), db)
+}
+
+// ExecuteWithContext will put a item into a DynamoDB table
+func (inp *Put) ExecuteWithContext(ctx aws.Context, db dynamodbiface.DynamoDBAPI) (err error) {
 	it, err := dynamodbattribute.MarshalMap(inp.Item)
 	if err != nil {
 		return fmt.Errorf("failed to marshal item map: %+v", err)
@@ -43,7 +48,7 @@ func Put(db dynamodbiface.DynamoDBAPI, inp *PutInput) (err error) {
 		}
 	}
 
-	if _, err = db.PutItem(&inp.PutItemInput); err != nil {
+	if _, err = db.PutItemWithContext(ctx, &inp.PutItemInput); err != nil {
 		aerr, ok := err.(awserr.Error)
 		if !ok || aerr.Code() != dynamodb.ErrCodeConditionalCheckFailedException {
 			return fmt.Errorf("failed to perform request: %+v", err)

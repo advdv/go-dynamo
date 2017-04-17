@@ -9,22 +9,27 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
-//ScanInput holds configuration for a query
-type ScanInput struct {
+//Scan holds configuration for a query
+type Scan struct {
 	PagingInput
 	ExpressionHolder
 	dynamodb.ScanInput
 }
 
-//NewScanInput prepares a query with it mandatory elements
-func NewScanInput(tname string) *ScanInput {
-	return &ScanInput{ScanInput: dynamodb.ScanInput{
+//NewScan prepares a query with it mandatory elements
+func NewScan(tname string) *Scan {
+	return &Scan{ScanInput: dynamodb.ScanInput{
 		TableName: aws.String(tname),
 	}}
 }
 
-// Scan reads all items (across partitions) in a DynamoDB table or index
-func Scan(db dynamodbiface.DynamoDBAPI, inp *ScanInput, items interface{}) (count int64, err error) {
+//Execute will scan all items (across partitions) with a background context
+func (inp *Scan) Execute(db dynamodbiface.DynamoDBAPI, items interface{}) (count int64, err error) {
+	return inp.ExecuteWithContext(aws.BackgroundContext(), db, items)
+}
+
+// ExecuteWithContext reads all items (across partitions) in a table or index
+func (inp *Scan) ExecuteWithContext(ctx aws.Context, db dynamodbiface.DynamoDBAPI, items interface{}) (count int64, err error) {
 	if inp.MaxPages == 0 {
 		inp.MaxPages = 1
 	}
@@ -41,7 +46,7 @@ func Scan(db dynamodbiface.DynamoDBAPI, inp *ScanInput, items interface{}) (coun
 
 	pageNum := 0
 	var lastErr error
-	if err = db.ScanPages(&inp.ScanInput,
+	if err = db.ScanPagesWithContext(ctx, &inp.ScanInput,
 		func(out *dynamodb.ScanOutput, lastPage bool) bool {
 			count += aws.Int64Value(out.Count)
 			pageNum++
